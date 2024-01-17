@@ -43,7 +43,7 @@ This project was mainly tested using k8s and minio, so we encourage you to use i
 Before start using CloudDicomOperations first you have to apply a preprocessing task
 
 ```python
-from KuroCloudDicom.CloudDicomHandlers import Preprocessor
+from KuroCloudDicom.CloudDicomHandlers import CloudDicomDataManager
 
 s3_config = {
     'aws_access_key_id': 'your_aws_access_key_id',
@@ -57,7 +57,7 @@ s3_config = {
 prefix_key = 'test'
 bucket_name = 'your_bucket_name'
 
-dataManager = CloudDicomDataManager(s3_config = s3_config, bucket_name = bucket_name, prefix_key = prefix_key)
+dataManager = CloudDicomDataManager.CloudDicomDataManager(s3_config = s3_config, bucket_name = bucket_name, prefix_key = prefix_key)
 
 files = [] # an array with your dicom files as binary object
 
