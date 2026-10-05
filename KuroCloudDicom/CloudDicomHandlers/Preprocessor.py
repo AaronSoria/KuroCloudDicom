@@ -78,7 +78,7 @@ class Preprocessor:
         if not reader.Read():
             raise ValueError(f"GDCM could not read pixel data from {file_path!r}")
         pixel_buffer = reader.GetImage().GetBuffer()
-        pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
+        pixel_array = np.frombuffer(pixel_buffer.encode("utf-8", errors="surrogateescape"), dtype=np.uint16)
         image_dims = reader.GetImage().GetDimensions()
         pixel_array = pixel_array.reshape(image_dims)
         submatrix_collection = self.__CreateSubmatrix(pixel_array, self.__dicom_chunks)

@@ -40,7 +40,7 @@ def ComputeSubarea(params: SubareaParameters) -> float:
         reader.SetFileName(tmp_name)
         if reader.Read():
             pixel_buffer = reader.GetImage().GetBuffer()
-            pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
+            pixel_array = np.frombuffer(pixel_buffer.encode("utf-8", errors="surrogateescape"), dtype=np.uint16)
             image_dims = reader.GetImage().GetDimensions()
             pixel_array = pixel_array.reshape(image_dims)
             pixel_spacing = list(dicom_file.PixelSpacing)

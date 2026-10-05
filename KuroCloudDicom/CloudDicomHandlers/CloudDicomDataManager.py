@@ -111,7 +111,7 @@ class CloudDicomDataManager:
                 pixel_array = None
                 if reader.Read():
                     pixel_buffer = reader.GetImage().GetBuffer()
-                    pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
+                    pixel_array = np.frombuffer(pixel_buffer.encode("utf-8", errors="surrogateescape"), dtype=np.uint16)
                     image_dims = reader.GetImage().GetDimensions()
                     pixel_array = pixel_array.reshape(image_dims)
                     if output_format == 1:
