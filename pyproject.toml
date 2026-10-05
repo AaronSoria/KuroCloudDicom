@@ -12,7 +12,9 @@ license-files = ["LICENSE"]
 authors = [{ name = "Luis Aaron Maximiliano", email = "soria_aaron@outlook.com" }]
 requires-python = ">=3.9"
 dependencies = [
-    "python-gdcm>=3.0.10,<4",
+    # python-gdcm 3.2.6+ ships no Python 3.9 wheels and its sdist does not build with pip
+    "python-gdcm>=3.0.10,<3.2.3; python_version < '3.10'",
+    "python-gdcm>=3.0.10,<4; python_version >= '3.10'",
     "boto3>=1.26,<2",
     "numpy>=1.21,<3",
     "cloudpickle>=2.0,<4",
