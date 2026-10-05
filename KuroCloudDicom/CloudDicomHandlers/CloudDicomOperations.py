@@ -1,5 +1,9 @@
+"""Volume computation over CloudDicom chunks stored in S3-compatible storage, parallelised with Lithops."""
+from __future__ import annotations
+
 import io
 import pickle
+from typing import Any, Iterable, Mapping, Sequence, TypeVar
 
 import boto3
 import lithops
@@ -8,8 +12,15 @@ from .._s3utils import ListKeys, SplitS3Path
 from .SubareaFullParallelParameters import SubareaFullParallelParameters
 from .SubareaParameters import SubareaParameters
 
+T = TypeVar("T")
 
-def ComputeSubarea(params: SubareaParameters):
+
+def ComputeSubarea(params: SubareaParameters) -> float:
+    """Sum the physical area of every CloudDicom chunk in ``params.keys``.
+
+    Runs on a Lithops worker. Each chunk is downloaded, zlib-decompressed and
+    unpickled; its area is ``rows * pixel_spacing[0] * cols * pixel_spacing[1]``.
+    """
     import io
     import pickle
     import zlib
@@ -34,7 +45,8 @@ def ComputeSubarea(params: SubareaParameters):
                              * pixel_array.shape[1] * params.pixel_spacing[1])
     return subarea
 
-def ComputeSubareaFullParallel(params: SubareaParameters):
+def ComputeSubareaFullParallel(params: SubareaParameters) -> float:
+    """Like :func:`ComputeSubarea`, but processes each key in a local ``multiprocessing`` pool."""
     import multiprocessing
 
     parameters = [SubareaFullParallelParameters(params.s3_config, params.pixel_spacing, params.bucket_name, item)
@@ -44,7 +56,8 @@ def ComputeSubareaFullParallel(params: SubareaParameters):
         results = p.map(ObtainArea, parameters)
         return sum(results)
 
-def ObtainArea(parameters: SubareaFullParallelParameters):
+def ObtainArea(parameters: SubareaFullParallelParameters) -> float:
+    """Return the physical area of the single CloudDicom chunk ``parameters.key``."""
     import zlib
     client = boto3.client(
             "s3",
@@ -60,14 +73,38 @@ def ObtainArea(parameters: SubareaFullParallelParameters):
     pixel_array = pickle.load(result)
     return (pixel_array.shape[0] * parameters.pixel_spacing[0] * pixel_array.shape[1] * parameters.pixel_spacing[1])
 
-def SumSubareas(results):
+def SumSubareas(results: Iterable[float]) -> float:
+    """Reducer for Lithops ``map_reduce``: sum the partial areas."""
     total = 0
     for map_result in results:
         total = total + map_result
     return total
 
-def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, workers = 8,
-                               runtime='aarons28/kuro-dicom-v310:1.0'):
+def ComputeVolumenFullParallel(metadata: Mapping[str, Any], s3_config: Mapping[str, Any], s3_path: str,
+                               bucket_name: str, workers: int = 8,
+                               runtime: str = 'aarons28/kuro-dicom-v310:1.0') -> float:
+    """Compute the volume covered by a collection uploaded with ``CloudDicomDataManager``.
+
+    The volume is the sum over all chunks of ``rows * cols * pixel_spacing[0] * pixel_spacing[1]``
+    multiplied by ``slice_thickness``, i.e. the full image extent of every slice (no segmentation).
+
+    Args:
+        metadata: Collection metadata as returned by ``CloudDicomDataManager.ObtainMetadata()``;
+            must contain ``pixel_spacing`` and ``slice_thickness``.
+        s3_config: Mapping with ``aws_access_key_id``, ``aws_secret_access_key``, ``endpoint_url``
+            and ``region_name``. It is passed to the Lithops workers, which use it to read the chunks.
+        s3_path: Location of the chunks, as returned by ``CloudDicomDataManager.S3Path()``
+            (``s3:///<bucket>.meta/<prefix>/``). Only its key prefix is used.
+        bucket_name: Base bucket name; chunks are read from ``<bucket_name>.meta``.
+        workers: Maximum number of Lithops tasks the keys are split across.
+        runtime: Lithops runtime (container image) to execute the workers in.
+
+    Returns:
+        The volume in the units of the DICOM spacing attributes (normally mm^3).
+
+    Raises:
+        ValueError: If no chunks are found under the prefix, or ``workers < 1``.
+    """
     # ComputeSubarea already scales by pixel spacing, so only the slice thickness is left to apply
     pixel_spacing = metadata["pixel_spacing"]
     separation = float(metadata["slice_thickness"])
@@ -98,7 +135,14 @@ def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, worker
     return area * separation
 
 
-def SplitListInSubList(mylist, subListQuantity):
+def SplitListInSubList(mylist: Sequence[T], subListQuantity: int) -> list[Sequence[T]]:
+    """Split ``mylist`` into at most ``subListQuantity`` contiguous, non-empty sublists.
+
+    Sublist sizes differ by at most one element. An empty input returns ``[]``.
+
+    Raises:
+        ValueError: If ``subListQuantity < 1``.
+    """
     if subListQuantity < 1:
         raise ValueError("subListQuantity must be at least 1")
     if not mylist:
