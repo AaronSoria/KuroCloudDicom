@@ -1,15 +1,13 @@
-import numpy as np
-import io
-import os
-import scipy.io
-from scipy.io import savemat
-import zlib
-import pydicom
-from pydicom import dcmread, dcmwrite
-import gdcm
-import json
 import uuid
+
+import gdcm
+import numpy as np
+import pydicom
+from pydicom import dcmread
+from scipy.io import savemat
+
 from .ChunkedDicomData import ChunkedDicomData
+
 
 class Preprocessor:
     __dicom_chunks = 0
@@ -18,15 +16,16 @@ class Preprocessor:
         self.__dicom_chunks = dicom_chunks
         
     def __CreateSubmatrix(self, matrix, chunks):
-        submatrix = np.array_split(matrix, chunks, axis=1)
-        submatrix_uint16 = [chunk.astype('uint16') for chunk in submatrix]
-        return submatrix
+        return np.array_split(matrix, chunks, axis=1)
 
     def GenerateExtention(self, name, number):
         extention = str(number)
-        if len(extention) == 1: return name+'.00'+extention
-        if len(extention) == 2: return name+'.0'+extention
-        if len(extention) == 3: return name+'.'+extention
+        if len(extention) == 1:
+            return name+'.00'+extention
+        if len(extention) == 2:
+            return name+'.0'+extention
+        if len(extention) == 3:
+            return name+'.'+extention
 
     def SaveChunkedDicomAsMat(self, chunked_dicom: ChunkedDicomData):
         temp_file_name = str(uuid.uuid4())
@@ -38,19 +37,19 @@ class Preprocessor:
     def GenerateDicomMetadata(self,file_path):
         dicom_dataset = dcmread(file_path, force=True)
         mdic = {
-            "pixel_spacing": dicom_dataset.PixelSpacing._list, 
+            "pixel_spacing": list(dicom_dataset.PixelSpacing), 
             "slice_thickness": dicom_dataset.SliceThickness, 
-            "image_position":dicom_dataset.ImagePositionPatient._list,
-            "image_orientation": dicom_dataset.ImageOrientationPatient._list,
+            "image_position":list(dicom_dataset.ImagePositionPatient),
+            "image_orientation": list(dicom_dataset.ImageOrientationPatient),
             "number_of_chunks_per_file": self.__dicom_chunks }
         return mdic
 
     def GenerateDicomMetadataAsDict(self,dicom_dataset):
         mdic = {
-            "pixel_spacing": dicom_dataset.PixelSpacing._list, 
+            "pixel_spacing": list(dicom_dataset.PixelSpacing), 
             "slice_thickness": dicom_dataset.SliceThickness, 
-            "image_position":dicom_dataset.ImagePositionPatient._list,
-            "image_orientation": dicom_dataset.ImageOrientationPatient._list,
+            "image_position":list(dicom_dataset.ImagePositionPatient),
+            "image_orientation": list(dicom_dataset.ImageOrientationPatient),
             "number_of_chunks_per_file": self.__dicom_chunks }
         return mdic
     
@@ -67,7 +66,7 @@ class Preprocessor:
         submatrix_collection = self.__CreateSubmatrix(pixel_array, self.__dicom_chunks)
         chunked_collection = []
         for submatrix in submatrix_collection:
-            chunked_collection.append(ChunkedDicomData(image_position=dicom_dataset.ImagePositionPatient._list,
+            chunked_collection.append(ChunkedDicomData(image_position=list(dicom_dataset.ImagePositionPatient),
             matrix=submatrix))
         return chunked_collection
 

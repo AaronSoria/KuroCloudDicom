@@ -1,21 +1,20 @@
-from .SubareaParameters import SubareaParameters
-from .SubareaFullParallelParameters import SubareaFullParallelParameters
-from .._s3utils import ListKeys, SplitS3Path
-import lithops
-import numpy as np
-import boto3
 import io
 import pickle
-import math
+
+import boto3
+import lithops
+
+from .._s3utils import ListKeys, SplitS3Path
+from .SubareaFullParallelParameters import SubareaFullParallelParameters
+from .SubareaParameters import SubareaParameters
+
 
 def ComputeSubarea(params: SubareaParameters):
-    import pickle    
-    import boto3
     import io
-    import os
-    import logging
+    import pickle
     import zlib
-    import numpy as np
+
+    import boto3
 
     client = boto3.client(
             "s3",
@@ -31,18 +30,15 @@ def ComputeSubarea(params: SubareaParameters):
         uncompressed_data = zlib.decompress(compressed_data)
         result = io.BytesIO(uncompressed_data)
         pixel_array = pickle.load(result)
-        subarea = subarea + (pixel_array.shape[0] * params.pixel_spacing[0] * pixel_array.shape[1] * params.pixel_spacing[1])
+        subarea = subarea + (pixel_array.shape[0] * params.pixel_spacing[0]
+                             * pixel_array.shape[1] * params.pixel_spacing[1])
     return subarea
 
 def ComputeSubareaFullParallel(params: SubareaParameters):
-    import pickle    
-    import boto3
-    import io
-    import os
-    import logging
     import multiprocessing
 
-    parameters = [SubareaFullParallelParameters(params.s3_config, params.pixel_spacing, params.bucket_name, item ) for item in params.keys]
+    parameters = [SubareaFullParallelParameters(params.s3_config, params.pixel_spacing, params.bucket_name, item)
+                  for item in params.keys]
     num_cores = multiprocessing.cpu_count()
     with multiprocessing.Pool(num_cores) as p:
         results = p.map(ObtainArea, parameters)
@@ -50,7 +46,6 @@ def ComputeSubareaFullParallel(params: SubareaParameters):
 
 def ObtainArea(parameters: SubareaFullParallelParameters):
     import zlib
-    import numpy as np
     client = boto3.client(
             "s3",
             aws_access_key_id=parameters.s3_config["aws_access_key_id"],
@@ -71,7 +66,8 @@ def SumSubareas(results):
         total = total + map_result
     return total
 
-def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, workers = 8, runtime='aarons28/kuro-dicom-v310:1.0'):
+def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, workers = 8,
+                               runtime='aarons28/kuro-dicom-v310:1.0'):
     # ComputeSubarea already scales by pixel spacing, so only the slice thickness is left to apply
     pixel_spacing = metadata["pixel_spacing"]
     separation = float(metadata["slice_thickness"])

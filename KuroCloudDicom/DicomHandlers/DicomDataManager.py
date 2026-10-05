@@ -1,8 +1,6 @@
+
 import boto3
-import json
-import os
-import pydicom
-import tempfile
+
 
 class DicomDataManager:
     __client = None

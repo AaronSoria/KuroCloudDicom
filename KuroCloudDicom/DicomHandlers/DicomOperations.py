@@ -1,17 +1,17 @@
-import lithops
-import numpy as np
-import boto3
-from .SubareaParameters import SubareaParameters
-from .._s3utils import ListKeys, SplitS3Path
-from ..CloudDicomHandlers.CloudDicomOperations import SplitListInSubList
-from pydicom import dcmread
 import io
 import os
 
+import boto3
+import lithops
+import numpy as np
+from pydicom import dcmread
+
+from .._s3utils import ListKeys, SplitS3Path
+from ..CloudDicomHandlers.CloudDicomOperations import SplitListInSubList
+from .SubareaParameters import SubareaParameters
+
+
 def ComputeSubarea(params: SubareaParameters):
-    import numpy as np
-    import io
-    import os
     import gdcm
     
     client = boto3.client(
@@ -33,13 +33,9 @@ def ComputeSubarea(params: SubareaParameters):
             pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
             image_dims = reader.GetImage().GetDimensions()
             pixel_array = pixel_array.reshape(image_dims)
-            pixel_spacing = dicom_file.PixelSpacing._list
+            pixel_spacing = list(dicom_file.PixelSpacing)
             subarea = subarea + (pixel_array.shape[0] * pixel_spacing[0] * pixel_array.shape[1] * pixel_spacing[1])
         os.remove(tmp_name)
-    return subarea
-    
-
-    # os.remove(tmp_name)
     return subarea
 
 def SumSubareas(results):

@@ -32,3 +32,10 @@ Homepage = "https://github.com/AaronSoria/KuroCloudDicom"
 
 [tool.setuptools.packages.find]
 include = ["KuroCloudDicom*"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

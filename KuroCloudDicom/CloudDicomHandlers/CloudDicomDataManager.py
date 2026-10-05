@@ -1,19 +1,18 @@
-import boto3
-import json
-from .Preprocessor import Preprocessor
-from .SubareaParameters import SubareaParameters
-import os
-import pydicom
-import zlib
-from PIL import Image
-
-import tempfile
-import gdcm
-import json
-import numpy as np
-import pickle
 import io
+import json
+import os
+import pickle
+import tempfile
+import zlib
 from contextlib import contextmanager
+
+import boto3
+import gdcm
+import numpy as np
+import pydicom
+
+from .Preprocessor import Preprocessor
+
 
 @contextmanager
 def _TemporaryDicomFile(dicom_dataset):
@@ -34,7 +33,8 @@ class CloudDicomDataManager:
     __prefix_key = ""
     __runtime = ""
 
-    def __init__(self, s3_config, bucket_name, dicom_chunks = 2, prefix_key = "", runtime='aarons28/kuro-dicom-v310:1.0'):
+    def __init__(self, s3_config, bucket_name, dicom_chunks = 2, prefix_key = "",
+                 runtime='aarons28/kuro-dicom-v310:1.0'):
         self.__client = boto3.client(
             "s3",
             aws_access_key_id=s3_config["aws_access_key_id"],
@@ -71,13 +71,16 @@ class CloudDicomDataManager:
                     pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
                     image_dims = reader.GetImage().GetDimensions()
                     pixel_array = pixel_array.reshape(image_dims)
-                    if output_format == 1: self.UploadDicomAsCustom(pixel_array, file_name)
-                    if output_format == 2: self.UploadDicomAsNp(pixel_array, file_name)
+                    if output_format == 1:
+                        self.UploadDicomAsCustom(pixel_array, file_name)
+                    if output_format == 2:
+                        self.UploadDicomAsNp(pixel_array, file_name)
 
         meta = self.__preprocessor.GenerateDicomMetadataAsDict(dicom_dataset)
         metadata_file_name = "metadata.json"
         metaJson = json.dumps(meta)
-        self.__client.put_object(Body=metaJson,Key=self.__prefix_key+"/"+metadata_file_name, Bucket=self.__bucket_name_meta)
+        self.__client.put_object(Body=metaJson, Key=self.__prefix_key+"/"+metadata_file_name,
+            Bucket=self.__bucket_name_meta)
 
     def UploadDicomAsNp(self, pixel_array, file_name):
         chunk_collection = self.__preprocessor.SplitDicomInChunks(pixel_array)
@@ -121,7 +124,6 @@ class CloudDicomDataManager:
     def UploadDicomAsCustom(self, pixel_array, file_name):
         chunk_collection = self.__preprocessor.SplitDicomInChunks(pixel_array)
         i = 0
-        suffix = ".dcm"
         for chunk in chunk_collection:
             key = self.__preprocessor.GenerateExtention(file_name,i)
             compressed_chunk = (chunk / 4095 * 255).astype(np.uint8)
