@@ -39,6 +39,17 @@ def _TemporaryDicomFile(dicom_dataset: pydicom.Dataset) -> Iterator[str]:
     finally:
         os.remove(path)
 
+def _ReadPixelArray(file_path: str) -> np.ndarray | None:
+    # Kept in its own function so the GDCM reader (which holds the file open) is released on return,
+    # before the temporary file is removed; Windows cannot delete files that are still open.
+    reader = gdcm.ImageReader()
+    reader.SetFileName(file_path)
+    if not reader.Read():
+        return None
+    pixel_buffer = reader.GetImage().GetBuffer()
+    pixel_array = np.frombuffer(pixel_buffer.encode("utf-8", errors="surrogateescape"), dtype=np.uint16)
+    return pixel_array.reshape(reader.GetImage().GetDimensions())
+
 class CloudDicomDataManager:
     """Preprocess DICOM files into CloudDicom chunks and upload them, plus collection metadata.
 
@@ -106,18 +117,12 @@ class CloudDicomDataManager:
             file_name = file.name
             dicom_dataset = pydicom.dcmread(file.file, force=True)
             with _TemporaryDicomFile(dicom_dataset) as temp_file_name:
-                reader = gdcm.ImageReader()
-                reader.SetFileName(temp_file_name)
-                pixel_array = None
-                if reader.Read():
-                    pixel_buffer = reader.GetImage().GetBuffer()
-                    pixel_array = np.frombuffer(pixel_buffer.encode("utf-8", errors="surrogateescape"), dtype=np.uint16)
-                    image_dims = reader.GetImage().GetDimensions()
-                    pixel_array = pixel_array.reshape(image_dims)
-                    if output_format == 1:
-                        self.UploadDicomAsCustom(pixel_array, file_name)
-                    if output_format == 2:
-                        self.UploadDicomAsNp(pixel_array, file_name)
+                pixel_array = _ReadPixelArray(temp_file_name)
+            if pixel_array is not None:
+                if output_format == 1:
+                    self.UploadDicomAsCustom(pixel_array, file_name)
+                if output_format == 2:
+                    self.UploadDicomAsNp(pixel_array, file_name)
 
         meta = self.__preprocessor.GenerateDicomMetadataAsDict(dicom_dataset)
         metadata_file_name = "metadata.json"
