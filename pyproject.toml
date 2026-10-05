@@ -30,6 +30,9 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/AaronSoria/KuroCloudDicom"
 
+[project.optional-dependencies]
+dev = ["pytest>=8", "moto[s3]>=5", "ruff>=0.6"]
+
 [tool.setuptools.packages.find]
 include = ["KuroCloudDicom*"]
 
@@ -39,3 +42,6 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
