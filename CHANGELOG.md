@@ -40,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - MIT `LICENSE` file, included in the wheel and sdist.
 - Type hints and docstrings for the public API.
 - Unit tests (S3 mocked with moto, Lithops mocked) and a GitHub Actions workflow running ruff and
-  pytest on Python 3.10–3.12.
+  pytest on Python 3.9–3.12.
 - README rewritten in English, with configuration, usage, tested environment and limitations.
 
 ## [0.0.2] - 2023-09-04
