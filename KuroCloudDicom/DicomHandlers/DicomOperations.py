@@ -79,13 +79,9 @@ def ComputeVolumenParallel(s3_config, s3_path, bucket_name, workers = 8, runtime
         param = SubareaParameters(sublist, bucket_name_meta, s3_config)
         params.append(param)
 
+    # ComputeSubarea already scales by pixel spacing, so only the slice thickness is left to apply
     dicom_data = ObtainMetadata(keys[0], s3_config, bucket_name)
-    pixel_spacing = dicom_data.PixelSpacing
-    slice_thickness = dicom_data.SliceThickness
-    spacing = []
-    spacing.append(slice_thickness)
-    spacing = spacing + pixel_spacing._list
-    separation = np.prod(spacing)
+    separation = float(dicom_data.SliceThickness)
 
     # Compute Volume
     p = lithops.FunctionExecutor(runtime=runtime)

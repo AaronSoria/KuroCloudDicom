@@ -72,14 +72,10 @@ def SumSubareas(results):
     return total
 
 def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, workers = 8, runtime='aarons28/kuro-dicom-v310:1.0'):
-    # get separation between layers
+    # ComputeSubarea already scales by pixel spacing, so only the slice thickness is left to apply
     pixel_spacing = metadata["pixel_spacing"]
-    slice_thickness = metadata["slice_thickness"]
-    spacing = []
-    spacing.append(slice_thickness)
-    spacing = spacing + pixel_spacing
-    separation = np.prod(spacing)
-    
+    separation = float(metadata["slice_thickness"])
+
     client = boto3.client(
             "s3",
             aws_access_key_id=s3_config["aws_access_key_id"],
