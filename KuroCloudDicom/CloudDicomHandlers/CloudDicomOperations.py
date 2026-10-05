@@ -1,5 +1,6 @@
 from .SubareaParameters import SubareaParameters
 from .SubareaFullParallelParameters import SubareaFullParallelParameters
+from .._s3utils import ListKeys, SplitS3Path
 import lithops
 import numpy as np
 import boto3
@@ -87,13 +88,11 @@ def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, worker
             region_name=s3_config['region_name'])
 
     bucket_name_meta = bucket_name + ".meta"
-    result = client.list_objects(Bucket=bucket_name_meta, Delimiter=s3_path)
-    cloud_dicom_keys = result['Contents']
-    keys = []
-    for file in cloud_dicom_keys:
-        if 'metadata.json' not in file['Key']:
-            keys.append(file['Key'])
-    
+    _, prefix = SplitS3Path(s3_path)
+    keys = [key for key in ListKeys(client, bucket_name_meta, prefix) if 'metadata.json' not in key]
+    if not keys:
+        raise ValueError(f"No CloudDicom chunks found in bucket {bucket_name_meta!r} under prefix {prefix!r}")
+
     params = []
     print(len(keys))
     keySubLists = SplitListInSubList(keys,workers)

@@ -2,6 +2,7 @@ import lithops
 import numpy as np
 import boto3
 from .SubareaParameters import SubareaParameters
+from .._s3utils import ListKeys, SplitS3Path
 from pydicom import dcmread
 import os
 import math
@@ -68,12 +69,10 @@ def ComputeVolumenParallel(s3_config, s3_path, bucket_name, workers = 8, runtime
             region_name=s3_config['region_name'])
 
     bucket_name_meta = bucket_name
-    result = client.list_objects(Bucket=bucket_name_meta, Delimiter=s3_path)
-    cloud_dicom_keys = result['Contents']
-
-    # params = [SubareaParameters(file['Key'], bucket_name_meta, s3_config)
-    #     for file in cloud_dicom_keys]
-    keys = [file['Key'] for file in cloud_dicom_keys]
+    _, prefix = SplitS3Path(s3_path)
+    keys = ListKeys(client, bucket_name_meta, prefix)
+    if not keys:
+        raise ValueError(f"No DICOM files found in bucket {bucket_name_meta!r} under prefix {prefix!r}")
     params = []
     keySubLists = SplitListInSubList(keys,workers)
     for sublist in keySubLists:
