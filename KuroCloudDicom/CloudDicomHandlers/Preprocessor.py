@@ -58,19 +58,18 @@ class Preprocessor:
         dicom_dataset = pydicom.dcmread(file_path, force=True)
         reader = gdcm.ImageReader()
         reader.SetFileName(file_path)
-        pixel_array = None
-        if reader.Read():
-            pixel_buffer = reader.GetImage().GetBuffer()
-            pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
-            image_dims = reader.GetImage().GetDimensions()
-            pixel_array = pixel_array.reshape(image_dims)
-            submatrix_collection = self.__CreateSubmatrix(pixel_array, self.__dicom_chunks)
-            chunked_collection = []
-            for submatrix in enumerate(submatrix_collection):
-                chunked_collection.append(ChunkedDicomData(image_position=dicom_dataset.ImagePositionPatient._list, 
-                matrix=submatrix))
-        return chunked_collection        
-            # thow exception
+        if not reader.Read():
+            raise ValueError(f"GDCM could not read pixel data from {file_path!r}")
+        pixel_buffer = reader.GetImage().GetBuffer()
+        pixel_array = np.frombuffer(pixel_buffer.encode(errors="replace"), dtype=np.uint16)
+        image_dims = reader.GetImage().GetDimensions()
+        pixel_array = pixel_array.reshape(image_dims)
+        submatrix_collection = self.__CreateSubmatrix(pixel_array, self.__dicom_chunks)
+        chunked_collection = []
+        for submatrix in submatrix_collection:
+            chunked_collection.append(ChunkedDicomData(image_position=dicom_dataset.ImagePositionPatient._list,
+            matrix=submatrix))
+        return chunked_collection
 
     def SplitDicomInChunks(self, pixel_array): # -> Lista de np.arrays:
         submatrix_collection = self.__CreateSubmatrix(pixel_array, self.__dicom_chunks)

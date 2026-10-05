@@ -90,7 +90,6 @@ def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, worker
         raise ValueError(f"No CloudDicom chunks found in bucket {bucket_name_meta!r} under prefix {prefix!r}")
 
     params = []
-    print(len(keys))
     keySubLists = SplitListInSubList(keys,workers)
     for sublist in keySubLists:
         param = SubareaParameters(sublist, pixel_spacing, bucket_name_meta, s3_config)
@@ -104,15 +103,17 @@ def ComputeVolumenFullParallel(metadata, s3_config, s3_path, bucket_name, worker
 
 
 def SplitListInSubList(mylist, subListQuantity):
-    subListSize = math.trunc(len(mylist) / subListQuantity)
+    if subListQuantity < 1:
+        raise ValueError("subListQuantity must be at least 1")
+    if not mylist:
+        return []
+    # Never create empty sublists, and keep sizes within one element of each other
+    quantity = min(subListQuantity, len(mylist))
+    size, extra = divmod(len(mylist), quantity)
     sublists = []
     start_element = 0
-    for i in range(0, subListQuantity):
-        if i != subListQuantity-1:
-            sublists.append(mylist[start_element:start_element+subListSize])
-        else:
-            sublists.append(mylist[start_element:])
-        start_element = start_element + subListSize
+    for i in range(quantity):
+        end_element = start_element + size + (1 if i < extra else 0)
+        sublists.append(mylist[start_element:end_element])
+        start_element = end_element
     return sublists
-
-# expected 72000.0

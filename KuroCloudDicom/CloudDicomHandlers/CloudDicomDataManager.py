@@ -13,6 +13,18 @@ import json
 import numpy as np
 import pickle
 import io
+from contextlib import contextmanager
+
+@contextmanager
+def _TemporaryDicomFile(dicom_dataset):
+    # NamedTemporaryFile cannot be reopened by name on Windows while open, so use a closed temp file
+    fd, path = tempfile.mkstemp(suffix=".dcm")
+    os.close(fd)
+    try:
+        pydicom.dcmwrite(path, dicom_dataset)
+        yield path
+    finally:
+        os.remove(path)
 
 class CloudDicomDataManager:
     __client = None
@@ -36,29 +48,23 @@ class CloudDicomDataManager:
         self.__runtime = runtime
 
     def ObtainMetadata(self):
-        meta = 'metadata.json'
-        key = self.__prefix_key+'/'+meta
-        with open(meta, 'wb') as f:
-            self.__client.download_fileobj(self.__bucket_name_meta, key, f)
-            f.close()
-
-        with open(meta, 'r') as f:
-            metadata = json.load(f)
-            f.close()
-        os.remove(meta)
-        return metadata
+        key = self.__prefix_key+'/metadata.json'
+        response = self.__client.get_object(Bucket=self.__bucket_name_meta, Key=key)
+        return json.loads(response['Body'].read())
 
     def S3Path(self):
         return 's3:///'+self.__bucket_name_meta+'/'+self.__prefix_key+'/'
 
     def UploadDicomCollection(self, files, output_format = 1): #custom = 1, np = 2
+        files = list(files)
+        if not files:
+            raise ValueError("files must contain at least one DICOM file")
         for file in files:
             file_name = file.name
             dicom_dataset = pydicom.dcmread(file.file, force=True)
-            with tempfile.NamedTemporaryFile(suffix=".dcm") as temp_file:
-                pydicom.dcmwrite(temp_file.name, dicom_dataset)
+            with _TemporaryDicomFile(dicom_dataset) as temp_file_name:
                 reader = gdcm.ImageReader()
-                reader.SetFileName(temp_file.name)
+                reader.SetFileName(temp_file_name)
                 pixel_array = None
                 if reader.Read():
                     pixel_buffer = reader.GetImage().GetBuffer()
@@ -76,7 +82,6 @@ class CloudDicomDataManager:
     def UploadDicomAsNp(self, pixel_array, file_name):
         chunk_collection = self.__preprocessor.SplitDicomInChunks(pixel_array)
         i = 0
-        file_meta = FileMetaDataset()
         for chunk in chunk_collection:
             key = self.__preprocessor.GenerateExtention(file_name,i)
             subMatrix_data = io.BytesIO()
@@ -86,25 +91,18 @@ class CloudDicomDataManager:
             i = i + 1
 
     def SplitDicomFileAsJson(self, file_path):
-        result = self.__preprocessor.SplitDicomInChunks(file_path)
-        file_colection = [ self.__preprocessor.SaveChunkedDicomAsMat(item) for item in result]
-        return file_colection
+        # Despite the name, this always produced .mat files; it passed a path where an array was expected.
+        return self.SplitDicomFileAsMat(file_path)
 
     def UploadDicomAsMat(self, file):
         dicom_dataset = pydicom.dcmread(file.file, force=True)
-        with tempfile.NamedTemporaryFile(suffix=".dcm") as temp_file:
-            pydicom.dcmwrite(temp_file.name, dicom_dataset)
-            meta = self.__preprocessor.GenerateDicomMetadata(temp_file.name)
-            metadata_file_name = "metadata.json"
-            with open(metadata_file_name, 'w') as fp:
-                json.dump(meta, fp)
+        with _TemporaryDicomFile(dicom_dataset) as temp_file_name:
+            meta = self.__preprocessor.GenerateDicomMetadata(temp_file_name)
+            self.__client.put_object(Body=json.dumps(meta),
+                Key=self.__prefix_key+"/metadata.json",
+                Bucket=self.__bucket_name_meta)
 
-            self.__client.upload_file(metadata_file_name,
-                self.__bucket_name_meta,
-                self.__prefix_key+"/"+metadata_file_name)
-            os.remove(metadata_file_name)
-
-            file_colection_paths = self.SplitDicomFileAsMat(temp_file.name)
+            file_colection_paths = self.SplitDicomFileAsMat(temp_file_name)
             i = 0
             for file_path in file_colection_paths:
                 key = self.__preprocessor.GenerateExtention(file.name,i)
@@ -113,7 +111,9 @@ class CloudDicomDataManager:
                     self.__prefix_key+"/"+key)
                 i = i + 1
                 os.remove(file_path)
-            
+
+            # dcmread consumed the stream; rewind so the original file is uploaded in full
+            file.file.seek(0)
             self.__client.put_object(Bucket=self.__bucket_name,
                     Body=file.file,
                     Key=self.__prefix_key+"/"+file.name)
